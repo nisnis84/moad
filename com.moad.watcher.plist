@@ -15,7 +15,7 @@
          matches the hub's max_depth of 1. -->
     <key>WatchPaths</key>
     <array>
-        <string>__WATCH_DIR__</string>
+__WATCH_PATHS__
     </array>
 
     <!-- Also sync once at login, so any event missed while logged out self-heals. -->

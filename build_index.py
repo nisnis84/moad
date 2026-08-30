@@ -177,7 +177,14 @@ def load_registry():
         with open(REGISTRY) as fh:
             reg = json.load(fh)
     else:
-        reg = {}
+        # First run: seed from the shipped example so there is a real file to edit,
+        # rather than an invisible built-in default.
+        example = HERE / "dashboards.example.json"
+        reg = json.loads(example.read_text()) if example.exists() else {}
+        reg["overrides"] = {}
+        print(f"first run: created {REGISTRY.name} "
+              f"(scanning {', '.join(reg.get('roots', DEFAULT_ROOTS))})")
+        print("set your own directory with:  python3 build_index.py --root ~/path/to/dashboards")
     reg.setdefault("roots", list(DEFAULT_ROOTS))
     reg.setdefault("max_depth", 1)
     reg.setdefault("exclude_globs", [])
@@ -472,19 +479,47 @@ render();
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--add", metavar="DIR", help="add a directory to the scan roots")
+    ap.add_argument("--root", metavar="DIR",
+                    help="set the scan directory, replacing any existing roots")
+    ap.add_argument("--add", metavar="DIR", help="add another directory to the scan roots")
+    ap.add_argument("--remove", metavar="DIR", help="stop scanning a directory")
+    ap.add_argument("--roots", action="store_true", help="print the scan roots and exit")
     ap.add_argument("--open", action="store_true", help="open index.html when done")
     ap.add_argument("--depth", type=int, help="scan depth per root (1 = top level only)")
     args = ap.parse_args()
 
     reg = load_registry()
+
+    if args.roots:
+        for r in reg["roots"]:
+            exists = "" if Path(r).expanduser().is_dir() else "   (missing)"
+            print(f"{r}{exists}")
+        return
+
     if args.depth:
         reg["max_depth"] = args.depth
+
+    def resolve(d):
+        p = Path(d).expanduser()
+        if not p.is_dir():
+            sys.exit(f"not a directory: {p}")
+        return str(p.resolve())
+
+    if args.root:
+        reg["roots"] = [resolve(args.root)]
+        print(f"scan root set to: {reg['roots'][0]}")
     if args.add:
-        d = str(Path(args.add).expanduser().resolve())
+        d = resolve(args.add)
         if d not in reg["roots"]:
             reg["roots"].append(d)
             print(f"added root: {d}")
+    if args.remove:
+        d = str(Path(args.remove).expanduser().resolve())
+        before = len(reg["roots"])
+        reg["roots"] = [r for r in reg["roots"] if str(Path(r).expanduser().resolve()) != d]
+        print(f"removed root: {d}" if len(reg["roots"]) < before else f"not a root: {d}")
+        if not reg["roots"]:
+            sys.exit("refusing to leave zero scan roots -- add one first")
 
     print(f"scanning: {', '.join(reg['roots'])}")
     items = scan(reg["roots"], reg["exclude_globs"], reg["max_depth"],
@@ -497,6 +532,9 @@ def main():
 
     thumbed = sum(1 for i in items if i["thumb"])
     print(f"indexed {len(items)} artifacts ({thumbed} with thumbnails) -> {OUTPUT}")
+
+    if args.root or args.add or args.remove:
+        print("roots changed -- rerun ./install-watcher.sh so the watcher follows them")
 
     if args.open:
         os.system(f'open "{OUTPUT}"')
