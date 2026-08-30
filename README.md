@@ -44,7 +44,7 @@ open index.html
 | `thumbs/` | JPEG cache, ~37 KB each. Referenced relatively, not inlined. |
 | `install-watcher.sh` | Installs the launchd auto-refresh agent. |
 | `com.moad.watcher.plist` | launchd template (paths substituted at install). |
-| `skills/moad-categories/` | Optional Claude Code skill for better categories. |
+| `AGENTS.md` | Instructions for coding agents, incl. the category pass. |
 | `demo/generate_demo.py` | Synthetic dashboards to try it on. |
 | `LICENSE` | MIT. |
 | `.venv/` | Playwright, for `make_thumbs.py` only. `build_index.py` needs nothing but python3. |
@@ -164,16 +164,15 @@ Note `re.search`, not `match` — `ai` matches anywhere in the name, so anchor w
 `^` if you mean "starts with". And order matters: specific patterns before
 general ones. An explicit `category` in `overrides` beats every rule.
 
-### Optional: let an LLM do it
+### Optional: let a coding agent do it
 
-If you use Claude Code, `skills/moad-categories/` is a skill that reads your
-filenames and titles and designs a taxonomy properly — it can tell a real domain
-from a coincidence, split a big bucket into a hierarchy, and group by meaning
-rather than shared vocabulary. Ask it to "fix my MOAD categories".
+Open this repo in any agent that reads `AGENTS.md` — Claude Code, Codex, Cursor,
+Copilot, Amp — and say *"design better categories for my dashboards"*. `AGENTS.md`
+tells it how, including the part that matters: propose, then **measure with the
+tool**, then ask before writing.
 
-It is optional and nothing depends on it. The model proposes; the tool measures
-with `--check-categories` and writes nothing until you approve; the output is the
-same frozen `category_rules` list you could have typed yourself.
+Optional, and nothing depends on it. The output is the same frozen
+`category_rules` list you could have typed yourself.
 
 On the 417-file corpus this README keeps quoting, the frequency heuristic left 54
 files in `Other` and made a category out of the owner's family holiday. The LLM
