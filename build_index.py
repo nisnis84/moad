@@ -478,6 +478,10 @@ const $ = s => document.querySelector(s);
 const state = {q:"", cat:"", sort:"date", group:"category", list:false};
 
 const fmtDate = t => new Date(t*1000).toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"});
+// mtime is a unix timestamp, so Date renders it in the viewer's own timezone and
+// their locale's clock convention -- 24h or am/pm, whichever they use.
+const fmtTime = t => new Date(t*1000).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+const fmtExact = t => new Date(t*1000).toLocaleString(undefined,{dateStyle:"full",timeStyle:"long"});
 const fmtMonth = t => new Date(t*1000).toLocaleDateString(undefined,{month:"long",year:"numeric"});
 const fmtSize = b => b>=1048576 ? (b/1048576).toFixed(b>=10485760?0:1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -522,7 +526,7 @@ function cardHTML(i){
         <span class="badge">${esc(i.category)}</span>
         <span class="badge k">${esc(i.kind)}</span>
       </div>
-      <div class="stamp">${fmtDate(i.mtime)} <span>·</span> ${fmtSize(i.size)}</div>
+      <div class="stamp" title="Last modified ${esc(fmtExact(i.mtime))}">${fmtDate(i.mtime)}, ${fmtTime(i.mtime)} <span>·</span> ${fmtSize(i.size)}</div>
     </div>
   </a>`;
 }
