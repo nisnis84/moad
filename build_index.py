@@ -585,6 +585,12 @@ def main():
                     help="derive category rules from your actual files and print them")
     ap.add_argument("--apply", action="store_true",
                     help="with --suggest-categories, write the rules into dashboards.json")
+    ap.add_argument("--list-titles", action="store_true",
+                    help="print filename + title for every artifact as JSON (nothing else)")
+    ap.add_argument("--check-categories", metavar="FILE",
+                    help="dry-run a proposed category_rules JSON file; writes nothing")
+    ap.add_argument("--set-categories", metavar="FILE",
+                    help="write a category_rules JSON file into dashboards.json")
     ap.add_argument("--open", action="store_true", help="open index.html when done")
     ap.add_argument("--depth", type=int, help="scan depth per root (1 = top level only)")
     args = ap.parse_args()
@@ -621,6 +627,65 @@ def main():
         print(f"removed root: {d}" if len(reg["roots"]) < before else f"not a root: {d}")
         if not reg["roots"]:
             sys.exit("refusing to leave zero scan roots -- add one first")
+
+    if args.list_titles:
+        # The complete payload for an external categoriser: names and titles only.
+        # No file contents, no paths, no sizes -- what you see here is what leaves.
+        raw = scan(reg["roots"], reg["exclude_globs"], reg["max_depth"], [], "")
+        print(json.dumps([{"file": i["file"], "title": i["title"]} for i in raw],
+                         ensure_ascii=False, indent=1))
+        return
+
+    if args.check_categories or args.set_categories:
+        path = Path(args.check_categories or args.set_categories)
+        try:
+            proposed = json.loads(path.read_text())
+        except (OSError, ValueError) as exc:
+            sys.exit(f"cannot read rules from {path}: {exc}")
+        if isinstance(proposed, dict):
+            proposed = proposed.get("category_rules", [])
+        if (not isinstance(proposed, list) or
+                not all(isinstance(r, (list, tuple)) and len(r) == 2 for r in proposed)):
+            sys.exit("expected a JSON list of [regex, label] pairs")
+        for pattern, _ in proposed:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                sys.exit(f"invalid regex {pattern!r}: {exc}")
+
+        raw = scan(reg["roots"], reg["exclude_globs"], reg["max_depth"], [], "")
+        current = reg["category_rules"]
+        auto = current == "auto" or not current
+        if auto:
+            current, *_ = suggest_categories(raw)
+
+        now, new = {}, {}
+        for it in raw:
+            stem = Path(it["file"]).stem
+            a = categorize(stem, it["title"], current)
+            bb = categorize(stem, it["title"], proposed)
+            now[a] = now.get(a, 0) + 1
+            new[bb] = new.get(bb, 0) + 1
+
+        print(f"\n{len(raw)} artifacts\n")
+        print(f"  {'proposed':<28}{'files':>6}     {'current':<28}{'files':>6}")
+        print("  " + "-" * 76)
+        pro = sorted(new.items(), key=lambda x: (x[0] == "Other", -x[1]))
+        cur = sorted(now.items(), key=lambda x: (x[0] == "Other", -x[1]))
+        for i in range(max(len(pro), len(cur))):
+            l = f"{pro[i][0]:<28}{pro[i][1]:>6}" if i < len(pro) else " " * 34
+            r = f"{cur[i][0]:<28}{cur[i][1]:>6}" if i < len(cur) else ""
+            print(f"  {l}     {r}")
+        print(f"\n  Other: {new.get('Other', 0)} proposed vs "
+              f"{now.get('Other', 0)} current")
+
+        if args.set_categories:
+            reg["category_rules"] = [list(r) for r in proposed]
+            save_registry(reg)
+            print(f"\nwritten to {REGISTRY.name} -- rerun build_index.py to apply")
+        else:
+            print("\ndry run, nothing written")
+        return
 
     if args.suggest_categories:
         raw = scan(reg["roots"], reg["exclude_globs"], reg["max_depth"],

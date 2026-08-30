@@ -44,6 +44,8 @@ open index.html
 | `thumbs/` | JPEG cache, ~37 KB each. Referenced relatively, not inlined. |
 | `install-watcher.sh` | Installs the launchd auto-refresh agent. |
 | `com.moad.watcher.plist` | launchd template (paths substituted at install). |
+| `skills/moad-categories/` | Optional Claude Code skill for better categories. |
+| `demo/generate_demo.py` | Synthetic dashboards to try it on. |
 | `LICENSE` | MIT. |
 | `.venv/` | Playwright, for `make_thumbs.py` only. `build_index.py` needs nothing but python3. |
 
@@ -161,6 +163,28 @@ filename followed by the title, **first match wins**, `Other` if none match. Set
 Note `re.search`, not `match` — `ai` matches anywhere in the name, so anchor with
 `^` if you mean "starts with". And order matters: specific patterns before
 general ones. An explicit `category` in `overrides` beats every rule.
+
+### Optional: let an LLM do it
+
+If you use Claude Code, `skills/moad-categories/` is a skill that reads your
+filenames and titles and designs a taxonomy properly — it can tell a real domain
+from a coincidence, split a big bucket into a hierarchy, and group by meaning
+rather than shared vocabulary. Ask it to "fix my MOAD categories".
+
+It is optional and nothing depends on it. The model proposes; the tool measures
+with `--check-categories` and writes nothing until you approve; the output is the
+same frozen `category_rules` list you could have typed yourself.
+
+On the 417-file corpus this README keeps quoting, the frequency heuristic left 54
+files in `Other` and made a category out of the owner's family holiday. The LLM
+pass left **11** in `Other` and separated `Customer Deliverables`,
+`Leadership & Comms`, `Cost & Usage`, `Go-To-Market` and `Personal`.
+
+Exactly three things leave your machine, and you can see them first:
+
+```
+python3 build_index.py --list-titles     # filenames and titles, no file contents
+```
 
 Automatic mode won't invent a hierarchy. On a 417-file corpus it found nine
 categories and left 54 in `Other`; it grouped 260 files under one label where a
