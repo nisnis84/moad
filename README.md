@@ -123,47 +123,48 @@ Two limits worth knowing: `WatchPaths` is not recursive (top level only, matchin
 `max_depth: 1`), and launchd can drop an event that lands mid-rebuild. Nothing
 breaks — the next trigger, or the next login, resyncs.
 
-## How a dashboard gets its category
+## Categories
 
-The filename minus `.html`, lowercased, is tested with `re.search` against each
-`[regex, label]` pair in `category_rules`. **First match wins**; no match means
-`Other`. An explicit `category` in `overrides` beats every rule.
-
-```json
-"category_rules": [
-  ["^report[_-]",              "Customer Reports"],
-  ["^ai[_-]|llm|agent",        "AI"],
-  ["exec|board|quarter|qbr",   "Exec / Quarterly"]
-]
-```
-
-Rules are tested against the filename **and the document title**, because the
-title usually says what a thing is and the filename usually doesn't. A rule
-anchored with `^` still anchors to the filename.
-
-Two things to know. It is `search`, not `match`, so `ai` matches anywhere — anchor
-with `^` when you mean "starts with". And order is load-bearing: put the specific
-pattern before the general one, or the general one swallows it.
-
-### Don't write them by hand
-
-Your filenames aren't mine, so shipping a taxonomy would be useless. Derive one
-from your own corpus instead:
+**You don't configure them.** MOAD reads your filenames and titles and works out
+the categories itself, every rebuild, so they keep up as your corpus grows.
 
 ```
-python3 build_index.py --suggest-categories           # print proposed rules
-python3 build_index.py --suggest-categories --apply   # write them to dashboards.json
+$ ./refresh.sh
+categories (auto): Sales, Infra, People, Model, Finance, Customer
+indexed 36 artifacts -> index.html
 ```
 
-It tokenises every filename and title, drops dates, version numbers and format
-words (`report`, `final`, `v2`, `2026`), then greedily picks the tokens that cover
+It tokenises each filename and title, throws away dates, version numbers and
+format words (`report`, `final`, `v2`, `2026`), and keeps the words that group
 the most files — preferring words that appear in titles, since those make better
-labels. Without `--apply` it only prints, so you can edit before committing to it.
+labels. Anything that doesn't group lands in `Other`.
 
-It won't invent a hierarchy. On a 417-file corpus it proposed nine categories and
-left 54 in `Other` — better coverage than the rules that corpus's owner had written
-by hand — but it lumped 260 files under one label where a human would have split
-out a sub-group. Treat the output as a starting point, then hand-edit.
+### If you want control
+
+See what it would pick, without changing anything:
+
+```
+python3 build_index.py --suggest-categories
+```
+
+Freeze that set so it stops changing as files are added:
+
+```
+python3 build_index.py --suggest-categories --apply
+```
+
+That writes a `category_rules` list into `dashboards.json`, which you can then
+edit by hand. `[regex, label]` pairs, tested with `re.search` against the
+filename followed by the title, **first match wins**, `Other` if none match. Set
+`"category_rules": "auto"` to go back to automatic.
+
+Note `re.search`, not `match` — `ai` matches anywhere in the name, so anchor with
+`^` if you mean "starts with". And order matters: specific patterns before
+general ones. An explicit `category` in `overrides` beats every rule.
+
+Automatic mode won't invent a hierarchy. On a 417-file corpus it found nine
+categories and left 54 in `Other`; it grouped 260 files under one label where a
+human would have split out a sub-group. Freeze and edit if that bothers you.
 
 ## Overrides
 

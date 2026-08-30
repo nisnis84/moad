@@ -285,7 +285,7 @@ def load_registry():
     reg.setdefault("roots", list(DEFAULT_ROOTS))
     reg.setdefault("max_depth", 1)
     reg.setdefault("exclude_globs", [])
-    reg.setdefault("category_rules", [list(r) for r in DEFAULT_CATEGORY_RULES])
+    reg.setdefault("category_rules", "auto")
     reg.setdefault("customer_pattern", "")
     reg.setdefault("overrides", {})
     return reg
@@ -644,8 +644,22 @@ def main():
         return
 
     print(f"scanning: {', '.join(reg['roots'])}")
+
+    rules = reg["category_rules"]
+    auto = rules == "auto" or not rules
     items = scan(reg["roots"], reg["exclude_globs"], reg["max_depth"],
-                 reg["category_rules"], reg["customer_pattern"])
+                 [] if auto else rules, reg["customer_pattern"])
+
+    if auto:
+        # No rules configured: derive them from the files themselves, every run,
+        # so categories keep up as the corpus grows. Freeze them by writing a list
+        # into dashboards.json (--suggest-categories --apply does exactly that).
+        rules, _, other, _ = suggest_categories(items)
+        for it in items:
+            it["category"] = categorize(Path(it["file"]).stem, it["title"], rules)
+        if rules:
+            print(f"categories (auto): {', '.join(r[1] for r in rules)}"
+                  + (f" · {other} in Other" if other else ""))
     items = apply_overrides(items, reg["overrides"])
     items = attach_thumbs(items)
 
