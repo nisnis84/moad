@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import concurrent.futures as cf
+import json
 import sys
 import threading
 from pathlib import Path
@@ -80,14 +81,52 @@ def downscale(files):
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+MANIFEST = THUMBS / "manifest.json"
+
+
+def load_manifest():
+    try:
+        return json.loads(MANIFEST.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save_manifest(m):
+    MANIFEST.write_text(json.dumps(m, indent=0, sort_keys=True))
+
+
 def sweep(items):
-    """Delete cached thumbs whose (path, mtime) no longer matches any artifact."""
-    valid = {thumb_name(i["path"], i["mtime"]) for i in items}
+    """Delete a cached thumb only when its own source file is gone or has changed.
+
+    Deliberately NOT "delete anything the current scan didn't produce": the scan
+    roots are configurable, so a thumb can be absent from this run simply because
+    you pointed MOAD at a different directory. Sweeping on that basis destroys the
+    cache every time you switch roots.
+    """
+    manifest = load_manifest()
+    # record what we know from this run
+    for i in items:
+        manifest[thumb_name(i["path"], i["mtime"])] = {"src": i["path"], "mtime": i["mtime"]}
+
     n = 0
     for f in THUMBS.glob("*.jpg"):
-        if f.name not in valid:
+        entry = manifest.get(f.name)
+        if entry is None:
+            continue                      # unknown provenance -- leave it alone
+        src = Path(entry["src"])
+        try:
+            stale = (not src.exists()) or int(src.stat().st_mtime) != entry["mtime"]
+        except OSError:
+            stale = True
+        if stale:
             f.unlink()
+            manifest.pop(f.name, None)
             n += 1
+
+    # drop manifest rows whose thumb no longer exists
+    for name in [k for k in manifest if not (THUMBS / k).exists()]:
+        manifest.pop(name)
+    save_manifest(manifest)
     return n
 
 

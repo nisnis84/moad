@@ -22,6 +22,11 @@ It is deliberately small and boring: no server, no build step, no dependencies
 for the core (Python 3 and a browser you already have). `index.html` is
 generated — open it, don't edit it.
 
+![MOAD indexing a directory of dashboards](docs/screenshot.png)
+
+*Screenshot taken against the synthetic corpus from `demo/generate_demo.py` — real
+UI, invented data.*
+
 ```
 ./refresh.sh          # rescan + thumbnail new files + rebuild   ← the one command
 open index.html
@@ -41,6 +46,18 @@ open index.html
 | `com.moad.watcher.plist` | launchd template (paths substituted at install). |
 | `LICENSE` | MIT. |
 | `.venv/` | Playwright, for `make_thumbs.py` only. `build_index.py` needs nothing but python3. |
+
+## Try it without pointing it at anything real
+
+```
+python3 demo/generate_demo.py ~/moad-demo 36
+python3 build_index.py --root ~/moad-demo
+./refresh.sh && open index.html
+```
+
+36 synthetic dashboards across six domains, five different filename conventions.
+Rerunning the generator clears its own previous output — it only ever deletes files
+containing its marker string, never anything else in the directory.
 
 ## Choosing which directory to index
 
@@ -120,9 +137,33 @@ The filename minus `.html`, lowercased, is tested with `re.search` against each
 ]
 ```
 
-Two things to know. It is `search`, not `match`, so `ai` matches anywhere in the
-name — anchor with `^` when you mean "starts with". And order is load-bearing:
-put the specific pattern before the general one, or the general one swallows it.
+Rules are tested against the filename **and the document title**, because the
+title usually says what a thing is and the filename usually doesn't. A rule
+anchored with `^` still anchors to the filename.
+
+Two things to know. It is `search`, not `match`, so `ai` matches anywhere — anchor
+with `^` when you mean "starts with". And order is load-bearing: put the specific
+pattern before the general one, or the general one swallows it.
+
+### Don't write them by hand
+
+Your filenames aren't mine, so shipping a taxonomy would be useless. Derive one
+from your own corpus instead:
+
+```
+python3 build_index.py --suggest-categories           # print proposed rules
+python3 build_index.py --suggest-categories --apply   # write them to dashboards.json
+```
+
+It tokenises every filename and title, drops dates, version numbers and format
+words (`report`, `final`, `v2`, `2026`), then greedily picks the tokens that cover
+the most files — preferring words that appear in titles, since those make better
+labels. Without `--apply` it only prints, so you can edit before committing to it.
+
+It won't invent a hierarchy. On a 417-file corpus it proposed nine categories and
+left 54 in `Other` — better coverage than the rules that corpus's owner had written
+by hand — but it lumped 260 files under one label where a human would have split
+out a sub-group. Treat the output as a starting point, then hand-edit.
 
 ## Overrides
 

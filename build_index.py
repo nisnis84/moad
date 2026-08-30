@@ -87,11 +87,20 @@ def extract_meta(path: Path) -> dict:
     return {"title": title, "h1": h1}
 
 
-def categorize(stem: str, rules) -> str:
-    low = stem.lower()
+def categorize(stem: str, title: str, rules) -> str:
+    """First matching rule wins; no match means "Other".
+
+    Rules are tested against the filename stem followed by the document title,
+    because the title usually says what a thing is and the filename usually
+    doesn't. A rule anchored with ^ still anchors to the filename.
+    """
+    hay = f"{stem} {title}".lower()
     for pattern, label in rules:
-        if re.search(pattern, low):
-            return label
+        try:
+            if re.search(pattern, hay):
+                return label
+        except re.error:
+            continue
     return "Other"
 
 
@@ -161,7 +170,7 @@ def scan(roots, exclude_globs, max_depth, cat_rules, customer_pattern):
                 "dir": str(path.parent),
                 "title": title,
                 "subtitle": meta["h1"] if meta["h1"] and meta["h1"] != title else "",
-                "category": categorize(stem, cat_rules),
+                "category": categorize(stem, title, cat_rules),
                 "kind": kind_of(stem),
                 "customer": customer_of(stem, customer_pattern),
                 "mtime": int(st.st_mtime),
@@ -169,6 +178,94 @@ def scan(roots, exclude_globs, max_depth, cat_rules, customer_pattern):
             })
     return items
 
+
+
+# --------------------------------------------------------------------------- suggest
+
+# Tokens that describe the artifact's format, its version, or when it was made --
+# never what it is about. Proposing "2026" or "final" as a category is useless.
+SUGGEST_STOPWORDS = {
+    "html", "htm", "report", "reports", "dashboard", "dashboards", "deck", "slide",
+    "slides", "page", "doc", "docs", "draft", "final", "copy", "new", "old", "temp",
+    "tmp", "test", "untitled", "index", "output", "export", "version", "all", "full",
+    "review", "tracker", "weekly", "monthly", "daily", "quarterly", "detail",
+    "the", "and", "for", "with", "from", "of", "to", "in", "on", "by", "a", "an",
+    "vs", "v", "x", "data", "view", "summary", "overview", "analysis",
+    "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+}
+
+MIN_TOKEN_LEN = 3
+MAX_SUGGESTIONS = 9
+
+
+def tokenize(text: str):
+    """Meaningful lowercase tokens: no dates, no version numbers, no format words."""
+    out = []
+    for t in re.split(r"[^A-Za-z0-9]+", text.lower()):
+        if len(t) < MIN_TOKEN_LEN or t in SUGGEST_STOPWORDS:
+            continue
+        if t.isdigit():                      # 2026, 07, 23
+            continue
+        if re.fullmatch(r"v\d+|\d+[a-z]|[a-z]\d+", t):   # v2, 4b, q3 handled below
+            continue
+        out.append(t)
+    return out
+
+
+def suggest_categories(items):
+    """Derive category rules from the corpus instead of asking the user to invent them.
+
+    Greedy set cover over tokens drawn from filenames and titles. Title tokens are
+    preferred as labels because a title says what a thing is; a filename rarely does.
+    """
+    token_files, token_label = {}, {}
+    for idx, it in enumerate(items):
+        stem = Path(it["file"]).stem
+        file_tokens = set(tokenize(pretty_from_filename(stem)))
+        title_tokens = set(tokenize(it["title"]))
+        for t in file_tokens | title_tokens:
+            token_files.setdefault(t, set()).add(idx)
+            # remember how the token is actually written in a title, for the label
+            if t in title_tokens and t not in token_label:
+                for word in re.split(r"[^A-Za-z0-9]+", it["title"]):
+                    if word.lower() == t:
+                        token_label[t] = word
+                        break
+
+    total = len(items)
+    min_files = max(3, round(total * 0.015))
+    uncovered = set(range(total))
+    picked = []
+
+    while len(picked) < MAX_SUGGESTIONS:
+        best, best_gain = None, 0
+        for t, files in token_files.items():
+            gain = len(files & uncovered)
+            if gain > best_gain or (gain == best_gain and best and t in token_label
+                                    and best not in token_label):
+                best, best_gain = t, gain
+        if not best or best_gain < min_files:
+            break
+        picked.append((best, best_gain, len(token_files[best])))
+        uncovered -= token_files[best]
+        del token_files[best]
+
+    # \b treats "_" as a word character, so \bsales\b never matches
+    # sales_pipeline_2026. Use explicit lookarounds over the alphanumeric class.
+    rules = [[rf"(?<![a-z0-9]){re.escape(t)}(?![a-z0-9])",
+              (token_label.get(t) or t).strip().title()]
+             for t, _, _ in picked]
+
+    # Report what will actually happen by running the real classifier over the
+    # proposed rules, rather than what the set cover believed it covered. Those
+    # two numbers diverged once, and the printed count is the point of a dry run.
+    counts = {}
+    for it in items:
+        label = categorize(Path(it["file"]).stem, it["title"], rules)
+        counts[label] = counts.get(label, 0) + 1
+    picked = [(t, counts.get(rule[1], 0), tot)
+              for (t, _, tot), rule in zip(picked, rules)]
+    return rules, picked, counts.get("Other", 0), total
 
 # --------------------------------------------------------------------------- registry
 
@@ -484,6 +581,10 @@ def main():
     ap.add_argument("--add", metavar="DIR", help="add another directory to the scan roots")
     ap.add_argument("--remove", metavar="DIR", help="stop scanning a directory")
     ap.add_argument("--roots", action="store_true", help="print the scan roots and exit")
+    ap.add_argument("--suggest-categories", action="store_true",
+                    help="derive category rules from your actual files and print them")
+    ap.add_argument("--apply", action="store_true",
+                    help="with --suggest-categories, write the rules into dashboards.json")
     ap.add_argument("--open", action="store_true", help="open index.html when done")
     ap.add_argument("--depth", type=int, help="scan depth per root (1 = top level only)")
     args = ap.parse_args()
@@ -520,6 +621,27 @@ def main():
         print(f"removed root: {d}" if len(reg["roots"]) < before else f"not a root: {d}")
         if not reg["roots"]:
             sys.exit("refusing to leave zero scan roots -- add one first")
+
+    if args.suggest_categories:
+        raw = scan(reg["roots"], reg["exclude_globs"], reg["max_depth"],
+                   [], reg["customer_pattern"])
+        rules, picked, unmatched, total = suggest_categories(raw)
+        if not rules:
+            sys.exit("not enough shared vocabulary to suggest categories -- "
+                     "add rules by hand in dashboards.json")
+        print(f"\n{total} artifacts, {len(rules)} categories proposed, "
+              f"{unmatched} would fall into Other\n")
+        for (tok, gain, tot), rule in zip(picked, rules):
+            print(f'  {gain:>4} files   {rule[1]:<22} {rule[0]}')
+        print("\n  \"category_rules\": " + json.dumps(rules, indent=2).replace("\n", "\n  "))
+        if args.apply:
+            reg["category_rules"] = rules
+            save_registry(reg)
+            print(f"\nwritten to {REGISTRY.name} -- rerun build_index.py to apply")
+        else:
+            print("\nreview them, then rerun with --apply to write them "
+                  "into dashboards.json")
+        return
 
     print(f"scanning: {', '.join(reg['roots'])}")
     items = scan(reg["roots"], reg["exclude_globs"], reg["max_depth"],
