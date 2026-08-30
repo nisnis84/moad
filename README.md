@@ -1,7 +1,26 @@
 # MOAD — Mother Of All Dashboards
 
-One page that indexes every HTML dashboard, deck, report and diagram you generate.
-`index.html` is generated — open it, don't edit it.
+**Ask an AI for a dashboard and you have one in thirty seconds.** So you ask
+again. And again. A year later there are hundreds of self-contained HTML files
+scattered across your machine — dashboards, decks, reports, architecture
+diagrams — each genuinely useful the day it was made, and collectively
+unfindable.
+
+That's the new failure mode. Producing an artifact used to be the expensive
+part, so you made few of them and you remembered each one. Now producing is
+nearly free and *finding* is the bottleneck. `ls | grep` across four hundred
+files named `AI_Cost_Dashboard_6.html` is not a retrieval system, and neither
+is opening five of them to work out which is the right one.
+
+MOAD is the index. One page listing every HTML artifact you have generated,
+each with a rendered thumbnail, because you recognise a dashboard by looking at
+it rather than by parsing its filename. Point it at a directory, open
+`index.html`, click straight through to the real file. New artifacts show up on
+their own.
+
+It is deliberately small and boring: no server, no build step, no dependencies
+for the core (Python 3 and a browser you already have). `index.html` is
+generated — open it, don't edit it.
 
 ```
 ./refresh.sh          # rescan + thumbnail new files + rebuild   ← the one command
@@ -20,6 +39,7 @@ open index.html
 | `thumbs/` | JPEG cache, ~37 KB each. Referenced relatively, not inlined. |
 | `install-watcher.sh` | Installs the launchd auto-refresh agent. |
 | `com.moad.watcher.plist` | launchd template (paths substituted at install). |
+| `LICENSE` | MIT. |
 | `.venv/` | Playwright, for `make_thumbs.py` only. `build_index.py` needs nothing but python3. |
 
 ## Choosing which directory to index
@@ -141,3 +161,7 @@ Rescans refresh titles/dates/sizes but never touch `overrides` in `dashboards.js
 
 The hub links to absolute `file://` paths on this machine. Unlike the dashboards it
 indexes, it is deliberately *not* portable — emailing it gets you a page of dead links.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
