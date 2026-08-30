@@ -19,8 +19,18 @@ it rather than by parsing its filename. Point it at a directory, open
 their own.
 
 It is deliberately small and boring: no server, no build step, no dependencies
-for the core (Python 3 and a browser you already have). `index.html` is
-generated — open it, don't edit it.
+for the core. `index.html` is generated — open it, don't edit it.
+
+### Requirements
+
+| | |
+|---|---|
+| **Indexing** | Python 3 and a browser. Works on macOS, Linux and Windows. |
+| **Thumbnails** | + Playwright (`pip install playwright && playwright install chromium`). Portable; on non-macOS the `sips` downscale step is skipped, so thumbnails stay full-size. |
+| **Auto-refresh** | **macOS only.** `install-watcher.sh` installs a launchd agent and refuses to run elsewhere. On Linux use a systemd `.path` unit or `inotifywait`; on Windows, Task Scheduler or a PowerShell `FileSystemWatcher`. Either way the thing you trigger is `./refresh.sh`. |
+
+Developed and tested on macOS 15 with Python 3.14. The non-macOS paths are
+degraded-gracefully, not tested end to end — issues welcome.
 
 ![MOAD indexing a directory of dashboards](docs/screenshot.png)
 
@@ -81,7 +91,7 @@ watcher can never point at different places. After changing roots, rerun
 Anything saved to a root shows up automatically if the watcher is installed, or
 on the next `./refresh.sh` if it isn't.
 
-## Auto-refresh (launchd watcher)
+## Auto-refresh (launchd watcher, macOS only)
 
 A launchd agent watches `~/Downloads` and rebuilds the hub whenever a dashboard
 lands, so `index.html` is never stale — you just reload the tab.

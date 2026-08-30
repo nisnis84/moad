@@ -738,7 +738,8 @@ def main():
         print("roots changed -- rerun ./install-watcher.sh so the watcher follows them")
 
     if args.open:
-        os.system(f'open "{OUTPUT}"')
+        opener = {"darwin": "open", "win32": "start"}.get(sys.platform, "xdg-open")
+        os.system(f'{opener} "{OUTPUT}"')
 
 
 if __name__ == "__main__":

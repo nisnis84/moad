@@ -73,8 +73,14 @@ def downscale(files):
     Only the files just written -- re-running sips over already-shrunk JPEGs
     re-encodes them and loses quality on every refresh.
     """
+    import shutil
     import subprocess
     if not files:
+        return
+    if not shutil.which("sips"):
+        # sips ships with macOS only. Everything still works elsewhere; the
+        # thumbnails are just full-size, so thumbs/ grows faster.
+        print("note: 'sips' not found (macOS only) -- thumbnails left at full size")
         return
     subprocess.run(["sips", "--resampleWidth", str(THUMB_W), *files,
                     "--out", str(THUMBS)],

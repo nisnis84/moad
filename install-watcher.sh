@@ -7,6 +7,19 @@
 # The watched directories always come from dashboards.json, so the indexer and the
 # watcher can never drift apart.
 set -euo pipefail
+
+if [ "$(uname -s)" != "Darwin" ]; then
+  cat >&2 <<'MSG'
+install-watcher.sh is macOS-only: it installs a launchd agent.
+
+Everything else in MOAD is portable. To get auto-refresh on another platform,
+run ./refresh.sh from whatever your system uses to watch a directory:
+  Linux    systemd .path unit, or: inotifywait -m -e create,delete,moved_to DIR
+  Windows  Task Scheduler, or a PowerShell FileSystemWatcher
+MSG
+  exit 1
+fi
+
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LABEL="com.moad.watcher"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
