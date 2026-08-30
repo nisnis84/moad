@@ -166,10 +166,13 @@ general ones. An explicit `category` in `overrides` beats every rule.
 
 ### Optional: let a coding agent do it
 
-Open this repo in any agent that reads `AGENTS.md` — Claude Code, Codex, Cursor,
-Copilot, Amp — and say *"design better categories for my dashboards"*. `AGENTS.md`
-tells it how, including the part that matters: propose, then **measure with the
-tool**, then ask before writing.
+Open this repo in Claude Code, Codex, Cursor, Copilot or Amp and say
+*"design better categories for my dashboards"*.
+
+They all read [`AGENTS.md`](AGENTS.md), which carries the procedure under
+**Task: AI-designed categories** — including the part that matters: the model
+proposes, then **the tool measures** with `--check-categories`, then you approve
+before anything is written.
 
 Optional, and nothing depends on it. The output is the same frozen
 `category_rules` list you could have typed yourself.
