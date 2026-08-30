@@ -1,0 +1,9 @@
+__pycache__/
+.venv/
+thumbs/
+index.html
+watch.log
+watch-launchd.log
+.watch-sig
+.watch.lock/
+dashboards.json

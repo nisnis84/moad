@@ -1,0 +1,42 @@
+{
+  "roots": [
+    "~/Downloads"
+  ],
+  "max_depth": 1,
+  "exclude_globs": [
+    "*_draft.html",
+    "*copy*.html"
+  ],
+  "category_rules": [
+    [
+      "^ai[_-]|llm|agent",
+      "AI"
+    ],
+    [
+      "^sales|pipeline|revenue",
+      "Sales"
+    ],
+    [
+      "exec|board|quarter|qbr|q[1-4][_-]",
+      "Exec / Quarterly"
+    ],
+    [
+      "finops|cost|pricing|budget",
+      "Cost"
+    ]
+  ],
+  "customer_pattern": "^report[_-](.+?)[_-]\\d{4}",
+  "overrides": {
+    "~/Downloads/quarterly_review.html": {
+      "title": "Q3 Review",
+      "category": "Exec / Quarterly",
+      "pinned": true,
+      "tags": [
+        "weekly"
+      ]
+    },
+    "~/Downloads/scratch.html": {
+      "hidden": true
+    }
+  }
+}
